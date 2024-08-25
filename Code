@@ -1,0 +1,64 @@
+import numpy as np
+import pandas as pd
+import os
+import matplotlib.pyplot as plt
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+import tensorflow as tf
+from tensorflow.keras.models import Sequential, load_model, Model
+from tensorflow.keras.layers import Conv2D, MaxPool2D, AveragePooling2D, Dense, Flatten, ZeroPadding2D, BatchNormalization, Activation, Add, Input, Dropout, GlobalAveragePooling2D, Layer
+from tensorflow.keras.optimizers import SGD
+from tensorflow.keras.initializers import glorot_uniform
+from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
+from tensorflow.keras.applications import ResNet50
+from tensorflow.keras.applications.resnet50 import preprocess_input
+from PIL import Image
+import requests
+from io import BytesIO
+
+def preprocess_image_from_url(img_url, target_size=(224, 224)):
+    response = requests.get(img_url)
+    if response.status_code != 200:
+        raise Exception(f"Failed to retrieve image. Status code: {response.status_code}")
+    img = Image.open(BytesIO(response.content)).resize(target_size)
+    img_array = np.array(img)  # Convert image to numpy array
+    img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
+    img_array = preprocess_input(img_array)  # Preprocess the image for ResNet50
+    return img, img_array
+
+def predict_image(img_url, model, plant_names, actual_class=None):
+    try:
+        img, img_array = preprocess_image_from_url(img_url)
+        predictions = model.predict(img_array)
+        predicted_class = np.argmax(predictions, axis=1)
+        predicted_label = plant_names[predicted_class[0]]
+        
+        # Plot the image and predictions
+        plt.imshow(img)
+        plt.axis('off')
+        title = f"Predicted: {predicted_label}"
+        if actual_class:
+            title = f"Actual: {actual_class}\n" + title
+        plt.title(title)
+        plt.show()
+        
+        return predicted_label
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
+
+# Define plant names (you should define this based on your dataset)
+plant_names = ["Tomato__Bacterial_spot", "Tomato_Early_blight", "Tomato__Late_blight", 
+               "Tomato__Leaf_Mold", "Tomato__Septoria_leaf_spot", 
+               "Tomato__Spider_mites Two-spotted_spider_mite", "Tomato__Target_Spot", 
+               "Tomato__Tomato_Yellow_Leaf_Curl_Virus", "Tomato__Tomato_mosaic_virus", 
+               "Tomato___healthy"]
+
+# Load the model (you should have the trained model saved as 'RESNET50_PLANT_DISEASE.h5')
+model_main = load_model('RESNET50_PLANT_DISEASE.h5')
+
+# Example usage
+img_url = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSdv6tr2gYgKpS4mqMfDcg7X2kSXTePnG49Pg&s'  # Replace with an actual image URL
+actual_class = "Tomato___Early_blight"  # Replace with the actual class of the image if known
+predicted_label = predict_image(img_url, model_main, plant_names, actual_class)
+if predicted_label:
+    print(f"Predicted label: {predicted_label}")
